@@ -94,6 +94,28 @@ const Index = () => {
     }
   };
 
+  const seedDatabase = async () => {
+    try {
+      const response = await fetch('https://functions.poehali.dev/50533d4b-0104-4a37-904e-25a66c053744', {
+        method: 'POST'
+      });
+
+      if (response.ok) {
+        toast({
+          title: 'База заполнена!',
+          description: 'Добавлено 12 тестовых заявок',
+        });
+        loadLeads();
+      }
+    } catch (error) {
+      toast({
+        title: 'Ошибка',
+        description: 'Не удалось заполнить базу',
+        variant: 'destructive',
+      });
+    }
+  };
+
   const getStatusColor = (status: string) => {
     switch (status) {
       case 'new': return 'bg-blue-500';
@@ -133,10 +155,18 @@ const Index = () => {
               <p className="text-sm text-muted-foreground">Управление заявками</p>
             </div>
           </div>
-          <Button onClick={loadLeads}>
-            <Icon name="RefreshCw" size={16} className="mr-2" />
-            Обновить
-          </Button>
+          <div className="flex gap-2">
+            {totalLeads === 0 && (
+              <Button onClick={seedDatabase} variant="outline">
+                <Icon name="Database" size={16} className="mr-2" />
+                Заполнить тестовыми данными
+              </Button>
+            )}
+            <Button onClick={loadLeads}>
+              <Icon name="RefreshCw" size={16} className="mr-2" />
+              Обновить
+            </Button>
+          </div>
         </div>
       </div>
 
