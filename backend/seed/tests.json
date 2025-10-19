@@ -1,0 +1,14 @@
+{
+  "tests": [
+    {
+      "name": "Seed database with test data",
+      "method": "POST",
+      "path": "/",
+      "expectedStatus": 200,
+      "expectedBody": {
+        "success": true
+      },
+      "bodyMatcher": "partial"
+    }
+  ]
+}
