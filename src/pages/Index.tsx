@@ -1,333 +1,282 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
-import { Textarea } from '@/components/ui/textarea';
-import { Label } from '@/components/ui/label';
 import Icon from '@/components/ui/icon';
 import { useToast } from '@/hooks/use-toast';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+
+interface Lead {
+  id: number;
+  name: string;
+  email: string;
+  phone?: string;
+  company?: string;
+  message?: string;
+  status: string;
+  source?: string;
+  custom_fields?: Record<string, any>;
+  created_at: string;
+  updated_at: string;
+}
+
+interface Stats {
+  new?: number;
+  in_progress?: number;
+  completed?: number;
+  rejected?: number;
+}
 
 const Index = () => {
   const { toast } = useToast();
-  const [formData, setFormData] = useState({
-    name: '',
-    email: '',
-    phone: '',
-    company: '',
-    message: ''
-  });
-  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [leads, setLeads] = useState<Lead[]>([]);
+  const [stats, setStats] = useState<Stats>({});
+  const [loading, setLoading] = useState(true);
+  const [statusFilter, setStatusFilter] = useState<string>('all');
+  const [searchQuery, setSearchQuery] = useState('');
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setIsSubmitting(true);
-
+  const loadLeads = async () => {
+    setLoading(true);
     try {
-      const response = await fetch('https://functions.poehali.dev/ff8abe0b-9d49-44c3-83bf-27efed628132', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'X-API-Key': 'demo-key'
-        },
-        body: JSON.stringify(formData)
+      const url = statusFilter === 'all' 
+        ? 'https://functions.poehali.dev/fbc2766d-7a1d-423c-8c84-3ca85b8957c6'
+        : `https://functions.poehali.dev/fbc2766d-7a1d-423c-8c84-3ca85b8957c6?status=${statusFilter}`;
+      
+      const response = await fetch(url);
+      const data = await response.json();
+      
+      setLeads(data.leads || []);
+      setStats(data.stats || {});
+    } catch (error) {
+      toast({
+        title: 'Ошибка',
+        description: 'Не удалось загрузить заявки',
+        variant: 'destructive',
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    loadLeads();
+  }, [statusFilter]);
+
+  const updateLeadStatus = async (leadId: number, newStatus: string) => {
+    try {
+      const response = await fetch('https://functions.poehali.dev/fbc2766d-7a1d-423c-8c84-3ca85b8957c6', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: leadId, status: newStatus })
       });
 
       if (response.ok) {
         toast({
-          title: 'Заявка отправлена!',
-          description: 'Мы свяжемся с вами в ближайшее время.',
+          title: 'Статус обновлён',
+          description: 'Статус заявки успешно изменён',
         });
-        setFormData({ name: '', email: '', phone: '', company: '', message: '' });
-      } else {
-        throw new Error('Ошибка отправки');
+        loadLeads();
       }
     } catch (error) {
       toast({
         title: 'Ошибка',
-        description: 'Не удалось отправить заявку. Попробуйте позже.',
+        description: 'Не удалось обновить статус',
         variant: 'destructive',
       });
-    } finally {
-      setIsSubmitting(false);
     }
   };
 
-  const services = [
-    {
-      icon: 'TrendingUp',
-      title: 'Консалтинг',
-      description: 'Стратегическое планирование и оптимизация бизнес-процессов для роста вашей компании'
-    },
-    {
-      icon: 'Shield',
-      title: 'Аудит и безопасность',
-      description: 'Комплексная проверка систем и защита от рисков на всех уровнях организации'
-    },
-    {
-      icon: 'Zap',
-      title: 'Цифровизация',
-      description: 'Автоматизация процессов и внедрение современных технологических решений'
-    },
-    {
-      icon: 'Users',
-      title: 'Управление проектами',
-      description: 'Профессиональное сопровождение проектов от идеи до успешной реализации'
+  const getStatusColor = (status: string) => {
+    switch (status) {
+      case 'new': return 'bg-blue-500';
+      case 'in_progress': return 'bg-yellow-500';
+      case 'completed': return 'bg-green-500';
+      case 'rejected': return 'bg-red-500';
+      default: return 'bg-gray-500';
     }
-  ];
+  };
 
-  const stats = [
-    { value: '500+', label: 'Реализованных проектов' },
-    { value: '15 лет', label: 'На рынке' },
-    { value: '98%', label: 'Удовлетворенных клиентов' },
-    { value: '200+', label: 'Специалистов' }
-  ];
+  const getStatusLabel = (status: string) => {
+    switch (status) {
+      case 'new': return 'Новая';
+      case 'in_progress': return 'В работе';
+      case 'completed': return 'Завершена';
+      case 'rejected': return 'Отклонена';
+      default: return status;
+    }
+  };
+
+  const filteredLeads = leads.filter(lead => 
+    lead.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    lead.email.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    (lead.company && lead.company.toLowerCase().includes(searchQuery.toLowerCase()))
+  );
+
+  const totalLeads = Object.values(stats).reduce((sum, val) => sum + (val || 0), 0);
 
   return (
     <div className="min-h-screen bg-background">
-      <nav className="border-b bg-white/80 backdrop-blur-sm sticky top-0 z-50">
+      <div className="border-b bg-white">
         <div className="container mx-auto px-4 py-4 flex justify-between items-center">
-          <div className="flex items-center gap-2">
-            <Icon name="Building2" className="text-primary" size={28} />
-            <span className="text-xl font-bold text-secondary">КОМПАНИЯ</span>
-          </div>
-          <div className="hidden md:flex gap-8">
-            <a href="#about" className="text-foreground hover:text-primary transition-colors">О компании</a>
-            <a href="#services" className="text-foreground hover:text-primary transition-colors">Услуги</a>
-            <a href="#contact" className="text-foreground hover:text-primary transition-colors">Контакты</a>
-          </div>
-          <Button variant="default">Связаться</Button>
-        </div>
-      </nav>
-
-      <section className="py-20 md:py-32">
-        <div className="container mx-auto px-4">
-          <div className="max-w-4xl mx-auto text-center animate-fade-in">
-            <h1 className="text-4xl md:text-6xl font-bold mb-6 text-secondary leading-tight">
-              Решения для развития вашего бизнеса
-            </h1>
-            <p className="text-lg md:text-xl text-muted-foreground mb-8 max-w-2xl mx-auto">
-              Профессиональный консалтинг и технологические решения для компаний, 
-              стремящихся к лидерству на рынке
-            </p>
-            <div className="flex gap-4 justify-center flex-wrap">
-              <Button size="lg" className="text-base">
-                Начать сотрудничество
-              </Button>
-              <Button size="lg" variant="outline" className="text-base">
-                Узнать больше
-              </Button>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      <section className="py-16 bg-secondary">
-        <div className="container mx-auto px-4">
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-8">
-            {stats.map((stat, index) => (
-              <div key={index} className="text-center">
-                <div className="text-3xl md:text-4xl font-bold text-primary-foreground mb-2">
-                  {stat.value}
-                </div>
-                <div className="text-sm text-primary-foreground/80">{stat.label}</div>
-              </div>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      <section id="about" className="py-20">
-        <div className="container mx-auto px-4">
-          <div className="max-w-3xl mx-auto text-center mb-16">
-            <h2 className="text-3xl md:text-4xl font-bold mb-6 text-secondary">О компании</h2>
-            <p className="text-lg text-muted-foreground leading-relaxed">
-              Мы — команда профессионалов с многолетним опытом в области бизнес-консалтинга 
-              и внедрения технологических решений. Наша миссия — помогать компаниям достигать 
-              новых высот через инновации и проверенные методологии.
-            </p>
-          </div>
-          <div className="grid md:grid-cols-3 gap-8 max-w-5xl mx-auto">
-            <Card className="border-2 hover:shadow-lg transition-shadow">
-              <CardHeader>
-                <Icon name="Target" className="text-primary mb-3" size={40} />
-                <CardTitle>Наша цель</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <p className="text-muted-foreground">
-                  Создание устойчивых конкурентных преимуществ для наших клиентов
-                </p>
-              </CardContent>
-            </Card>
-            <Card className="border-2 hover:shadow-lg transition-shadow">
-              <CardHeader>
-                <Icon name="Award" className="text-primary mb-3" size={40} />
-                <CardTitle>Наши ценности</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <p className="text-muted-foreground">
-                  Профессионализм, прозрачность и ориентация на результат
-                </p>
-              </CardContent>
-            </Card>
-            <Card className="border-2 hover:shadow-lg transition-shadow">
-              <CardHeader>
-                <Icon name="Lightbulb" className="text-primary mb-3" size={40} />
-                <CardTitle>Наш подход</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <p className="text-muted-foreground">
-                  Индивидуальные решения на основе глубокого анализа и экспертизы
-                </p>
-              </CardContent>
-            </Card>
-          </div>
-        </div>
-      </section>
-
-      <section id="services" className="py-20 bg-muted">
-        <div className="container mx-auto px-4">
-          <div className="text-center mb-16">
-            <h2 className="text-3xl md:text-4xl font-bold mb-4 text-secondary">Наши услуги</h2>
-            <p className="text-lg text-muted-foreground max-w-2xl mx-auto">
-              Комплексные решения для эффективного развития вашего бизнеса
-            </p>
-          </div>
-          <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6 max-w-6xl mx-auto">
-            {services.map((service, index) => (
-              <Card key={index} className="hover:shadow-xl transition-all hover:-translate-y-1">
-                <CardHeader>
-                  <Icon name={service.icon} className="text-primary mb-4" size={48} />
-                  <CardTitle className="text-xl">{service.title}</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <CardDescription className="text-base leading-relaxed">
-                    {service.description}
-                  </CardDescription>
-                </CardContent>
-              </Card>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      <section id="contact" className="py-20">
-        <div className="container mx-auto px-4">
-          <div className="max-w-2xl mx-auto">
-            <div className="text-center mb-12">
-              <h2 className="text-3xl md:text-4xl font-bold mb-4 text-secondary">Свяжитесь с нами</h2>
-              <p className="text-lg text-muted-foreground">
-                Оставьте заявку, и наш специалист свяжется с вами в течение 24 часов
-              </p>
-            </div>
-            <Card className="border-2">
-              <CardContent className="pt-6">
-                <form onSubmit={handleSubmit} className="space-y-6">
-                  <div className="grid md:grid-cols-2 gap-4">
-                    <div className="space-y-2">
-                      <Label htmlFor="name">Имя *</Label>
-                      <Input
-                        id="name"
-                        required
-                        value={formData.name}
-                        onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                        placeholder="Иван Иванов"
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="email">Email *</Label>
-                      <Input
-                        id="email"
-                        type="email"
-                        required
-                        value={formData.email}
-                        onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                        placeholder="email@example.com"
-                      />
-                    </div>
-                  </div>
-                  <div className="grid md:grid-cols-2 gap-4">
-                    <div className="space-y-2">
-                      <Label htmlFor="phone">Телефон</Label>
-                      <Input
-                        id="phone"
-                        type="tel"
-                        value={formData.phone}
-                        onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
-                        placeholder="+7 (999) 123-45-67"
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="company">Компания</Label>
-                      <Input
-                        id="company"
-                        value={formData.company}
-                        onChange={(e) => setFormData({ ...formData, company: e.target.value })}
-                        placeholder="ООО «Компания»"
-                      />
-                    </div>
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="message">Сообщение</Label>
-                    <Textarea
-                      id="message"
-                      rows={5}
-                      value={formData.message}
-                      onChange={(e) => setFormData({ ...formData, message: e.target.value })}
-                      placeholder="Расскажите о вашем проекте или задаче..."
-                    />
-                  </div>
-                  <Button type="submit" size="lg" className="w-full" disabled={isSubmitting}>
-                    {isSubmitting ? 'Отправка...' : 'Отправить заявку'}
-                  </Button>
-                </form>
-              </CardContent>
-            </Card>
-          </div>
-        </div>
-      </section>
-
-      <footer className="bg-secondary text-primary-foreground py-12">
-        <div className="container mx-auto px-4">
-          <div className="grid md:grid-cols-3 gap-8 mb-8">
+          <div className="flex items-center gap-3">
+            <Icon name="Database" className="text-primary" size={32} />
             <div>
-              <div className="flex items-center gap-2 mb-4">
-                <Icon name="Building2" className="text-primary" size={24} />
-                <span className="text-lg font-bold">КОМПАНИЯ</span>
-              </div>
-              <p className="text-primary-foreground/80 text-sm">
-                Профессиональные решения для развития вашего бизнеса
-              </p>
-            </div>
-            <div>
-              <h3 className="font-semibold mb-4">Контакты</h3>
-              <div className="space-y-2 text-sm text-primary-foreground/80">
-                <div className="flex items-center gap-2">
-                  <Icon name="Mail" size={16} />
-                  <span>info@company.ru</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <Icon name="Phone" size={16} />
-                  <span>+7 (495) 123-45-67</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <Icon name="MapPin" size={16} />
-                  <span>Москва, ул. Примерная, д. 1</span>
-                </div>
-              </div>
-            </div>
-            <div>
-              <h3 className="font-semibold mb-4">Режим работы</h3>
-              <div className="space-y-2 text-sm text-primary-foreground/80">
-                <p>Пн-Пт: 9:00 - 18:00</p>
-                <p>Сб-Вс: Выходной</p>
-              </div>
+              <h1 className="text-2xl font-bold text-secondary">CRM Система</h1>
+              <p className="text-sm text-muted-foreground">Управление заявками</p>
             </div>
           </div>
-          <div className="border-t border-primary-foreground/20 pt-8 text-center text-sm text-primary-foreground/60">
-            © 2024 КОМПАНИЯ. Все права защищены.
-          </div>
+          <Button onClick={loadLeads}>
+            <Icon name="RefreshCw" size={16} className="mr-2" />
+            Обновить
+          </Button>
         </div>
-      </footer>
+      </div>
+
+      <div className="container mx-auto px-4 py-8">
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
+          <Card>
+            <CardHeader className="pb-3">
+              <CardTitle className="text-sm font-medium text-muted-foreground">Всего заявок</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="text-3xl font-bold">{totalLeads}</div>
+            </CardContent>
+          </Card>
+          
+          <Card>
+            <CardHeader className="pb-3">
+              <CardTitle className="text-sm font-medium text-muted-foreground">Новые</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="text-3xl font-bold text-blue-600">{stats.new || 0}</div>
+            </CardContent>
+          </Card>
+          
+          <Card>
+            <CardHeader className="pb-3">
+              <CardTitle className="text-sm font-medium text-muted-foreground">В работе</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="text-3xl font-bold text-yellow-600">{stats.in_progress || 0}</div>
+            </CardContent>
+          </Card>
+          
+          <Card>
+            <CardHeader className="pb-3">
+              <CardTitle className="text-sm font-medium text-muted-foreground">Завершено</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="text-3xl font-bold text-green-600">{stats.completed || 0}</div>
+            </CardContent>
+          </Card>
+        </div>
+
+        <Card>
+          <CardHeader>
+            <div className="flex flex-col md:flex-row gap-4 justify-between items-start md:items-center">
+              <CardTitle>Список заявок</CardTitle>
+              <div className="flex flex-col md:flex-row gap-3 w-full md:w-auto">
+                <Input
+                  placeholder="Поиск по имени, email, компании..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="md:w-80"
+                />
+                <Select value={statusFilter} onValueChange={setStatusFilter}>
+                  <SelectTrigger className="md:w-48">
+                    <SelectValue placeholder="Статус" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Все статусы</SelectItem>
+                    <SelectItem value="new">Новые</SelectItem>
+                    <SelectItem value="in_progress">В работе</SelectItem>
+                    <SelectItem value="completed">Завершено</SelectItem>
+                    <SelectItem value="rejected">Отклонено</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+          </CardHeader>
+          <CardContent>
+            {loading ? (
+              <div className="text-center py-12 text-muted-foreground">Загрузка...</div>
+            ) : filteredLeads.length === 0 ? (
+              <div className="text-center py-12">
+                <Icon name="Inbox" size={48} className="mx-auto text-muted-foreground mb-3" />
+                <p className="text-muted-foreground">Заявки не найдены</p>
+              </div>
+            ) : (
+              <div className="overflow-x-auto">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>ID</TableHead>
+                      <TableHead>Имя</TableHead>
+                      <TableHead>Email</TableHead>
+                      <TableHead>Телефон</TableHead>
+                      <TableHead>Компания</TableHead>
+                      <TableHead>Статус</TableHead>
+                      <TableHead>Дата</TableHead>
+                      <TableHead>Действия</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {filteredLeads.map((lead) => (
+                      <TableRow key={lead.id}>
+                        <TableCell className="font-medium">#{lead.id}</TableCell>
+                        <TableCell>{lead.name}</TableCell>
+                        <TableCell>{lead.email}</TableCell>
+                        <TableCell>{lead.phone || '—'}</TableCell>
+                        <TableCell>{lead.company || '—'}</TableCell>
+                        <TableCell>
+                          <Select
+                            value={lead.status}
+                            onValueChange={(value) => updateLeadStatus(lead.id, value)}
+                          >
+                            <SelectTrigger className="w-32">
+                              <Badge className={getStatusColor(lead.status)}>
+                                {getStatusLabel(lead.status)}
+                              </Badge>
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="new">Новая</SelectItem>
+                              <SelectItem value="in_progress">В работе</SelectItem>
+                              <SelectItem value="completed">Завершена</SelectItem>
+                              <SelectItem value="rejected">Отклонена</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </TableCell>
+                        <TableCell>
+                          {new Date(lead.created_at).toLocaleDateString('ru-RU', {
+                            day: '2-digit',
+                            month: '2-digit',
+                            year: 'numeric',
+                            hour: '2-digit',
+                            minute: '2-digit'
+                          })}
+                        </TableCell>
+                        <TableCell>
+                          <Button variant="ghost" size="sm">
+                            <Icon name="Eye" size={16} />
+                          </Button>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      </div>
     </div>
   );
 };

@@ -1,5 +1,5 @@
 '''
-Business: API endpoint для приема заявок с авторизацией по X-API-Key
+Business: API endpoint для приема заявок с авторизацией по X-API-Key и сохранением в БД
 Args: event - dict с httpMethod, headers, body; context - объект с request_id
 Returns: HTTP response dict с результатом обработки заявки
 '''
@@ -9,6 +9,8 @@ import os
 from typing import Dict, Any, Optional
 from pydantic import BaseModel, Field, EmailStr, ValidationError
 from datetime import datetime
+import psycopg2
+from psycopg2.extras import Json
 
 class LeadRequest(BaseModel):
     name: str = Field(..., min_length=1, max_length=200)
@@ -16,9 +18,16 @@ class LeadRequest(BaseModel):
     phone: Optional[str] = Field(None, max_length=50)
     company: Optional[str] = Field(None, max_length=200)
     message: Optional[str] = Field(None, max_length=2000)
+    source: Optional[str] = Field(None, max_length=100)
     
     class Config:
         extra = 'allow'
+
+def get_db_connection():
+    database_url = os.environ.get('DATABASE_URL')
+    if not database_url:
+        raise Exception('DATABASE_URL not configured')
+    return psycopg2.connect(database_url)
 
 def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
     method: str = event.get('httpMethod', 'GET')
@@ -66,9 +75,34 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
         body_data = json.loads(event.get('body', '{}'))
         lead = LeadRequest(**body_data)
         
-        lead_data = lead.model_dump()
-        lead_data['timestamp'] = datetime.utcnow().isoformat()
-        lead_data['request_id'] = context.request_id
+        custom_fields = {}
+        for key, value in body_data.items():
+            if key not in ['name', 'email', 'phone', 'company', 'message', 'source']:
+                custom_fields[key] = value
+        
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        
+        cursor.execute(
+            '''INSERT INTO leads (name, email, phone, company, message, source, custom_fields, status)
+               VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+               RETURNING id, created_at''',
+            (
+                lead.name,
+                lead.email,
+                lead.phone,
+                lead.company,
+                lead.message,
+                lead.source,
+                Json(custom_fields),
+                'new'
+            )
+        )
+        
+        lead_id, created_at = cursor.fetchone()
+        conn.commit()
+        cursor.close()
+        conn.close()
         
         return {
             'statusCode': 200,
@@ -78,9 +112,9 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
             },
             'body': json.dumps({
                 'success': True,
-                'message': 'Заявка успешно получена',
-                'lead_id': context.request_id,
-                'data': lead_data
+                'message': 'Заявка успешно сохранена',
+                'lead_id': lead_id,
+                'created_at': created_at.isoformat() if created_at else None
             }),
             'isBase64Encoded': False
         }
@@ -107,5 +141,16 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
                 'Access-Control-Allow-Origin': '*'
             },
             'body': json.dumps({'error': 'Invalid JSON in request body'}),
+            'isBase64Encoded': False
+        }
+    
+    except Exception as e:
+        return {
+            'statusCode': 500,
+            'headers': {
+                'Content-Type': 'application/json',
+                'Access-Control-Allow-Origin': '*'
+            },
+            'body': json.dumps({'error': f'Internal server error: {str(e)}'}),
             'isBase64Encoded': False
         }

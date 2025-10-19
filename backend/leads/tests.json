@@ -1,0 +1,30 @@
+{
+  "tests": [
+    {
+      "name": "OPTIONS request for CORS",
+      "method": "OPTIONS",
+      "path": "/",
+      "expectedStatus": 200
+    },
+    {
+      "name": "GET all leads",
+      "method": "GET",
+      "path": "/",
+      "expectedStatus": 200,
+      "expectedBody": {
+        "leads": "array"
+      },
+      "bodyMatcher": "partial"
+    },
+    {
+      "name": "GET leads with status filter",
+      "method": "GET",
+      "path": "/?status=new",
+      "expectedStatus": 200,
+      "expectedBody": {
+        "leads": "array"
+      },
+      "bodyMatcher": "partial"
+    }
+  ]
+}
