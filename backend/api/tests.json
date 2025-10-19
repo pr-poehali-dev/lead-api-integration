@@ -1,0 +1,83 @@
+{
+  "tests": [
+    {
+      "name": "OPTIONS request for CORS",
+      "method": "OPTIONS",
+      "path": "/",
+      "expectedStatus": 200,
+      "expectedHeaders": {
+        "Access-Control-Allow-Origin": "*"
+      }
+    },
+    {
+      "name": "POST valid lead without auth",
+      "method": "POST",
+      "path": "/",
+      "body": {
+        "name": "Иван Иванов",
+        "email": "ivan@example.com",
+        "phone": "+7 999 123-45-67",
+        "company": "ООО Тест"
+      },
+      "expectedStatus": 401
+    },
+    {
+      "name": "POST valid lead with auth",
+      "method": "POST",
+      "path": "/",
+      "headers": {
+        "X-API-Key": "demo-key"
+      },
+      "body": {
+        "name": "Иван Иванов",
+        "email": "ivan@example.com",
+        "phone": "+7 999 123-45-67",
+        "company": "ООО Тест",
+        "message": "Тестовое сообщение"
+      },
+      "expectedStatus": 200,
+      "expectedBody": {
+        "success": true
+      },
+      "bodyMatcher": "partial"
+    },
+    {
+      "name": "POST with dynamic fields",
+      "method": "POST",
+      "path": "/",
+      "headers": {
+        "X-API-Key": "demo-key"
+      },
+      "body": {
+        "name": "Тест",
+        "email": "test@test.ru",
+        "custom_field_1": "value1",
+        "custom_field_2": "value2"
+      },
+      "expectedStatus": 200,
+      "expectedBody": {
+        "success": true
+      },
+      "bodyMatcher": "partial"
+    },
+    {
+      "name": "POST invalid email",
+      "method": "POST",
+      "path": "/",
+      "headers": {
+        "X-API-Key": "demo-key"
+      },
+      "body": {
+        "name": "Тест",
+        "email": "invalid-email"
+      },
+      "expectedStatus": 400
+    },
+    {
+      "name": "GET method not allowed",
+      "method": "GET",
+      "path": "/",
+      "expectedStatus": 405
+    }
+  ]
+}
